@@ -19,6 +19,14 @@ interface GhostlockRepository {
     /** Skip the pre-attack KernelSU check and run the exploit as a test. */
     fun setForceAttackTest(enabled: Boolean)
 
+    /** Activation manager card: 0 = auto, 1..N = preset, then the two custom
+     *  modes (package / libksud.so path). */
+    fun setManagerMode(index: Int)
+
+    fun setManagerCustomPackage(packageName: String)
+
+    fun setManagerCustomPath(path: String)
+
     fun setShizukuEnabled(enabled: Boolean)
 
     /**

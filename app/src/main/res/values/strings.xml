@@ -76,6 +76,14 @@
     <string name="safe_mode_label">Safe mode</string>
     <string name="safe_mode_summary">Disable all modules</string>
     <string name="force_attack_test_label">Force attack test</string>
+    <string name="manager_select_label">Activation manager</string>
+    <string name="manager_select_summary">Which KernelSU manager to activate after root</string>
+    <string name="manager_mode_auto">Auto (legacy detection)</string>
+    <string name="manager_mode_custom_package">Custom package name</string>
+    <string name="manager_mode_custom_path">Custom libksud.so path</string>
+    <string name="manager_custom_package_label">Package name</string>
+    <string name="manager_custom_path_label">libksud.so path</string>
+    <string name="manager_custom_path_hint">Runs the binary directly with late-load --allow-shell; leave the package modes to use the find-based command</string>
     <string name="force_attack_test_summary">Ignore an existing KernelSU root and run the exploit anyway; the rooted child is discarded at the end</string>
     <string name="shizuku_label">Run via Shizuku</string>
     <string name="shizuku_summary">Skip Seccomp bypass</string>

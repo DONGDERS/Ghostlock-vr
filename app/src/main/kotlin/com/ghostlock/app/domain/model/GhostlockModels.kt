@@ -1,5 +1,41 @@
 package com.ghostlock.app.domain.model
 
+/** Manager presets for the activation card (advanced settings). Order defines
+ *  the mode index used across the UI, the repository and the native argv. */
+data class ManagerPreset(val label: String, val packageName: String)
+
+val ManagerPresets = listOf(
+    ManagerPreset("KernelSU", "me.weishu.kernelsu"),
+    ManagerPreset("KernelSU-Next", "com.rifsxd.ksunext"),
+    ManagerPreset("SukiSU", "com.sukisu.ultra"),
+    ManagerPreset("ResukiSU", "com.resukisu.resukisu"),
+    ManagerPreset("SakiSU", "com.sakisu.sakisu"),
+    ManagerPreset("7KimiSU", "com.sevenk.core"),
+)
+
+/** Activation-manager selection persisted from the advanced card.
+ *  modeIndex: 0 = auto (legacy chain), 1..ManagerPresets.size = preset,
+ *  preset.size+1 = custom package, preset.size+2 = custom libksud.so path. */
+data class ManagerSelection(
+    val modeIndex: Int = 0,
+    val customPackage: String = "",
+    val customPath: String = "",
+) {
+    val preset: ManagerPreset? get() = ManagerPresets.getOrNull(modeIndex - 1)
+    val isCustomPackage: Boolean get() = modeIndex == ManagerPresets.size + 1
+    val isCustomPath: Boolean get() = modeIndex == ManagerPresets.size + 2
+    /** Effective package name for the find-based activation command. */
+    val packageName: String?
+        get() = when {
+            preset != null -> preset!!.packageName
+            isCustomPackage -> customPackage.trim().takeIf { it.isNotEmpty() }
+            else -> null
+        }
+    /** Explicit libksud.so path when the custom-path mode is active. */
+    val explicitPath: String?
+        get() = if (isCustomPath) customPath.trim().takeIf { it.isNotEmpty() } else null
+}
+
 data class CpuPair(val primary: Int, val consumer: Int) {
     override fun toString(): String = "$primary,$consumer"
 }
@@ -19,6 +55,8 @@ data class KernelSnapshot(
     val recommendShizuku: Boolean,
     /** User-selected Shizuku path for kernels that do not require it. */
     val shizukuEnabled: Boolean = false,
+    /** Activation-manager selection from the advanced settings card. */
+    val managerSelection: ManagerSelection = ManagerSelection(),
     val shizukuStatus: ShizukuStatus,
 )
 

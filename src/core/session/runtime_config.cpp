@@ -78,6 +78,20 @@ static void runtime_config_init_paths(config::RuntimeConfig *config) {
                                : config->home_dir + "/.ghostlock_ksu.log";
 }
 
+static void runtime_config_init_manager(config::RuntimeConfig *config) {
+    /* Advanced-settings manager card: explicit package forces the
+     * find/libksud.so activation command; explicit path runs that binary
+     * directly. Empty values keep the legacy auto-detection. */
+    const char *env_pkg = getenv("GHOSTLOCK_MANAGER_PKG");
+    const char *env_path = getenv("GHOSTLOCK_KSUD_PATH");
+    if (env_pkg && env_pkg[0]) {
+        config->manager_pkg = env_pkg;
+    }
+    if (env_path && env_path[0]) {
+        config->ksud_path = env_path;
+    }
+}
+
 /* Capture all process environment and CPU/path choices exactly once. Input:
  * writable config; output: 0/-1 with the validated CPU pair. */
 int32_t ghostlock::config::RuntimeConfig::init() {
@@ -87,9 +101,12 @@ int32_t ghostlock::config::RuntimeConfig::init() {
     root_script_path.clear();
     ksu_log_path.clear();
     debug_dir.clear();
+    manager_pkg.clear();
+    ksud_path.clear();
 
     runtime_config_init_cpus(this);
     runtime_config_init_paths(this);
+    runtime_config_init_manager(this);
 
     return 0;
 }

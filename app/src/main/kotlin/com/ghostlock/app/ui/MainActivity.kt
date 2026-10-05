@@ -186,6 +186,15 @@ private fun GhostlockRoute(
             override fun onForceAttackTestChanged(enabled: Boolean) =
                 viewModel.toggleForceAttackTest(enabled)
 
+            override fun onManagerModeSelected(index: Int) =
+                viewModel.selectManagerMode(index)
+
+            override fun onManagerCustomPackageChanged(value: String) =
+                viewModel.updateManagerCustomPackage(value)
+
+            override fun onManagerCustomPathChanged(value: String) =
+                viewModel.updateManagerCustomPath(value)
+
             override fun onShizukuChanged(enabled: Boolean) = viewModel.toggleShizuku(enabled)
             override fun onDialogItemSelected(index: Int) = viewModel.onDialogItemSelected(index)
             override fun onDialogInputChange(value: String) = viewModel.onDialogInputChange(value)

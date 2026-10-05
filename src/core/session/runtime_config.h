@@ -22,6 +22,12 @@ namespace ghostlock::config {
         std::string ksu_log_path = "/data/local/tmp/.ghostlock_ksu.log";
         /* Kernel-log dump directory from --dump-kernel-log; empty disables the dump. */
         std::string debug_dir;
+        /* Manager-selection activation (advanced settings card): Kotlin passes
+         * GHOSTLOCK_MANAGER_PKG for the find-based command template and
+         * GHOSTLOCK_KSUD_PATH for an explicit binary. Both empty = legacy
+         * auto-detection chain. */
+        std::string manager_pkg;
+        std::string ksud_path;
 
         RuntimeConfig() noexcept = default;
 

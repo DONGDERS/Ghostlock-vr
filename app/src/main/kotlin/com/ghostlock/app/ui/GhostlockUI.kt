@@ -104,6 +104,11 @@ data class GhostlockUiState(
     val customCpuPair: CpuPair? = null,
     val safeModeEnabled: Boolean = false,
     val forceAttackTestEnabled: Boolean = false,
+    /** Activation-manager card (advanced settings): 0 = auto, 1..6 presets,
+     *  7 custom package, 8 custom libksud.so path. */
+    val managerModeIndex: Int = 0,
+    val managerCustomPackage: String = "",
+    val managerCustomPath: String = "",
     val tcpRouteEnabled: Boolean = true,
     val compact: Boolean = false,
     val executionSheetVisible: Boolean = false,
@@ -180,6 +185,9 @@ interface GhostlockActions {
     fun onCpuPairSelected(index: Int)
     fun onSafeModeChanged(enabled: Boolean)
     fun onForceAttackTestChanged(enabled: Boolean)
+    fun onManagerModeSelected(index: Int)
+    fun onManagerCustomPackageChanged(value: String)
+    fun onManagerCustomPathChanged(value: String)
     fun onShizukuChanged(enabled: Boolean)
     fun onDialogItemSelected(index: Int)
     fun onDialogInputChange(value: String)

@@ -58,6 +58,7 @@ import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import com.ghostlock.app.domain.model.ManagerPresets
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonLocation
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
@@ -144,6 +145,17 @@ private fun ProfileHintBanner(
  * log export switches. Debug preferences are hidden in release builds.
  */
 @Composable
+/** Manager card dropdown entries in the domain mode order: auto, presets,
+ *  custom package, custom path. */
+@Composable
+private fun managerCardItems(): List<DropdownItem> =
+    listOf(
+        stringResource(R.string.manager_mode_auto),
+        *ManagerPresets.map { it.label }.toTypedArray(),
+        stringResource(R.string.manager_mode_custom_package),
+        stringResource(R.string.manager_mode_custom_path),
+    ).map { DropdownItem(icon = null, title = it) }
+
 internal fun AdvancedScreen(
     state: GhostlockUiState,
     actions: GhostlockActions,
@@ -183,6 +195,56 @@ internal fun AdvancedScreen(
                         title = stringResource(R.string.force_attack_test_label),
                         summary = stringResource(R.string.force_attack_test_summary),
                     )
+                }
+            }
+            item(key = "manager") {
+                Card {
+                    Column {
+                        OverlaySpinnerPreference(
+                            title = stringResource(R.string.manager_select_label),
+                            summary = stringResource(R.string.manager_select_summary),
+                            items = managerCardItems(),
+                            selectedIndex = state.managerModeIndex,
+                            showValue = true,
+                            onSelectedIndexChange = actions::onManagerModeSelected,
+                        )
+                        AnimatedVisibility(
+                            visible = state.managerModeIndex == ManagerPresets.size + 1,
+                            enter = expandVertically(),
+                            exit = shrinkVertically(),
+                        ) {
+                            TextField(
+                                value = state.managerCustomPackage,
+                                onValueChange = actions::onManagerCustomPackageChanged,
+                                label = stringResource(R.string.manager_custom_package_label),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+                            )
+                        }
+                        AnimatedVisibility(
+                            visible = state.managerModeIndex == ManagerPresets.size + 2,
+                            enter = expandVertically(),
+                            exit = shrinkVertically(),
+                        ) {
+                            Column {
+                                TextField(
+                                    value = state.managerCustomPath,
+                                    onValueChange = actions::onManagerCustomPathChanged,
+                                    label = stringResource(R.string.manager_custom_path_label),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+                                )
+                                Text(
+                                    text = stringResource(R.string.manager_custom_path_hint),
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                                    style = MiuixTheme.textStyles.body2,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                )
+                            }
+                        }
+                    }
                 }
             }
             item(key = "override") {

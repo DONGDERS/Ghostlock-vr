@@ -823,6 +823,21 @@ class GhostlockViewModel(
         mutableState.update { it.copy(forceAttackTestEnabled = enabled) }
     }
 
+    fun selectManagerMode(index: Int) {
+        repository.setManagerMode(index)
+        mutableState.update { it.copy(managerModeIndex = index) }
+    }
+
+    fun updateManagerCustomPackage(value: String) {
+        repository.setManagerCustomPackage(value)
+        mutableState.update { it.copy(managerCustomPackage = value) }
+    }
+
+    fun updateManagerCustomPath(value: String) {
+        repository.setManagerCustomPath(value)
+        mutableState.update { it.copy(managerCustomPath = value) }
+    }
+
     fun toggleShizuku(enabled: Boolean) {
         repository.setShizukuEnabled(enabled)
         mutableState.update { it.copy(shizukuEnabled = enabled) }
@@ -1046,6 +1061,9 @@ class GhostlockViewModel(
                 cpuPairIndex = snapshot.selectedCpuPair,
                 safeModeEnabled = snapshot.safeModeEnabled,
                 forceAttackTestEnabled = snapshot.forceAttackTest,
+                managerModeIndex = snapshot.managerSelection.modeIndex,
+                managerCustomPackage = snapshot.managerSelection.customPackage,
+                managerCustomPath = snapshot.managerSelection.customPath,
                 shizukuEnabled = snapshot.shizukuEnabled,
                 shizukuStatus = snapshot.shizukuStatus,
                 profileInvalidPaths = loaded?.invalidPaths ?: emptySet(),

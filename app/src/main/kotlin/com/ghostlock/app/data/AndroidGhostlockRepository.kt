@@ -13,6 +13,8 @@ import com.ghostlock.app.BuildInfo
 import com.ghostlock.app.domain.model.CpuPair
 import com.ghostlock.app.domain.model.DebugSettings
 import com.ghostlock.app.domain.model.KernelSnapshot
+import com.ghostlock.app.domain.model.ManagerPresets
+import com.ghostlock.app.domain.model.ManagerSelection
 import com.ghostlock.app.domain.model.OffsetCandidate
 import com.ghostlock.app.data.ota.OtaPayloadExtractor
 import com.ghostlock.app.domain.model.OffsetImportResult
@@ -46,6 +48,9 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         const val ExtractBinaryName = "libextract.so"
         const val DefaultDebugLocation = "Download/ghostlock-debug-log"
         const val PrefForceAttackTest = "force_attack_test"
+        const val PrefManagerMode = "manager_mode"
+        const val PrefManagerPackage = "manager_custom_package"
+        const val PrefManagerPath = "manager_custom_path"
         const val PrefDebugExportEnabled = "debug_export_enabled"
         const val PrefDebugExportLocation = "debug_export_location"
         const val PrefDebugKernelLogEnabled = "debug_kernel_log_enabled"
@@ -91,6 +96,9 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
     private var selectedCpuPair = 0
     private var safeModeEnabled = false
     private var forceAttackTest = false
+    private var managerMode = 0
+    private var managerCustomPackage = ""
+    private var managerCustomPath = ""
     private var shizukuEnabled = false
     /** True once the user flipped the toggle; only then does it override the
      * profile suggestion (PROFILE-SUGGEST-01). */
@@ -103,6 +111,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         restoreCpuPair()
         restoreShizukuPreference()
         restoreForceAttackTest()
+        restoreManagerSelection()
         dropLegacyOffsetsCache()
         migrateLegacyOffsetsStore()
     }
@@ -166,6 +175,11 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
             selectedCpuPair = selectedCpuPair,
             safeModeEnabled = safeModeEnabled,
             forceAttackTest = forceAttackTest,
+            managerSelection = ManagerSelection(
+                modeIndex = managerMode,
+                customPackage = managerCustomPackage,
+                customPath = managerCustomPath,
+            ),
             recommendShizuku = recommendShizuku,
             shizukuEnabled = shizukuActive,
             shizukuStatus = if (shizukuActive) shizukuRunner.status()
@@ -188,6 +202,21 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
     override fun setForceAttackTest(enabled: Boolean) {
         forceAttackTest = enabled
         preferences.edit { putBoolean(PrefForceAttackTest, enabled) }
+    }
+
+    override fun setManagerMode(index: Int) {
+        managerMode = index
+        preferences.edit { putInt(PrefManagerMode, index) }
+    }
+
+    override fun setManagerCustomPackage(packageName: String) {
+        managerCustomPackage = packageName
+        preferences.edit { putString(PrefManagerPackage, packageName) }
+    }
+
+    override fun setManagerCustomPath(path: String) {
+        managerCustomPath = path
+        preferences.edit { putString(PrefManagerPath, path) }
     }
 
     override fun setShizukuEnabled(enabled: Boolean) {
@@ -649,6 +678,15 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
                     environment()["TMPDIR"] = workDir.absolutePath
                     environment()["HOME"] = workDir.absolutePath
                     environment()["GHOSTLOCK_KSU_LOG"] = ksuLog.absolutePath
+                    // Advanced-settings manager card: explicit selection forces the
+                    // find/libksud.so activation template in the root script.
+                    val selection = ManagerSelection(
+                        modeIndex = managerMode,
+                        customPackage = managerCustomPackage,
+                        customPath = managerCustomPath,
+                    )
+                    environment()["GHOSTLOCK_MANAGER_PKG"] = selection.packageName.orEmpty()
+                    environment()["GHOSTLOCK_KSUD_PATH"] = selection.explicitPath.orEmpty()
                 }
             onLog("<b> starting native: ${binary.absolutePath}")
             resetRunState()
@@ -953,6 +991,12 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         forceAttackTest = preferences.getBoolean(PrefForceAttackTest, false)
     }
 
+    private fun restoreManagerSelection() {
+        managerMode = preferences.getInt(PrefManagerMode, 0)
+        managerCustomPackage = preferences.getString(PrefManagerPackage, null)?.orEmpty() ?: ""
+        managerCustomPath = preferences.getString(PrefManagerPath, null)?.orEmpty() ?: ""
+    }
+
     private fun parseCpuList(value: String): List<Int> = value.split(',').flatMap { part ->
         val range = part.trim().split('-').mapNotNull { it.toIntOrNull() }
         when (range.size) {
@@ -1011,7 +1055,16 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
     private fun firstValidProperty(vararg keys: String): String? = keys.asSequence().firstNotNullOfOrNull { validDeviceName(systemProperty(it)) }
 
     private fun prepareKsud(workDir: File, onLog: (String) -> Unit): File? {
-        val packages = listOf("me.weishu.kernelsu.pr", "me.weishu.kernelsu", "com.resukisu.resukisu", "com.kowx712.supermanager")
+        val selection = ManagerSelection(
+            modeIndex = managerMode,
+            customPackage = managerCustomPackage,
+            customPath = managerCustomPath,
+        )
+        val packages = buildList {
+            selection.packageName?.let(::add)
+            addAll(ManagerPresets.map { it.packageName })
+            addAll(listOf("me.weishu.kernelsu.pr", "com.kowx712.supermanager"))
+        }.distinct()
         var installed = false
         for (packageName in packages) {
             val appInfo = runCatching { appContext.packageManager.getApplicationInfo(packageName, 0) }.getOrNull() ?: continue

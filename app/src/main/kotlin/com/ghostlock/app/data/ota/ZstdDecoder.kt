@@ -16,7 +16,7 @@ object ZstdDecoder {
         if (expected == 0) return ByteArray(0)
         val output = ByteArray(expected)
         val written = try {
-            decompressor.decompress(input, 0, input.size, output, 0)
+            decompressor.decompress(input, 0, input.size, output, 0, expected)
         } catch (error: Exception) {
             throw IOException("zstd decompression failed: ${error.message}")
         }

@@ -186,6 +186,7 @@ interface GhostlockActions {
     fun onSafeModeChanged(enabled: Boolean)
     fun onForceAttackTestChanged(enabled: Boolean)
     fun onManagerModeSelected(index: Int)
+    fun onManagerCustomToggled(enabled: Boolean)
     fun onManagerCustomPackageChanged(value: String)
     fun onManagerCustomPathChanged(value: String)
     fun onShizukuChanged(enabled: Boolean)

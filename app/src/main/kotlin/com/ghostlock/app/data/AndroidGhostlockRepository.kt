@@ -51,6 +51,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         const val PrefManagerMode = "manager_mode"
         const val PrefManagerPackage = "manager_custom_package"
         const val PrefManagerPath = "manager_custom_path"
+        const val PrefFirstRunNotice = "first_run_notice_shown"
         const val PrefDebugExportEnabled = "debug_export_enabled"
         const val PrefDebugExportLocation = "debug_export_location"
         const val PrefDebugKernelLogEnabled = "debug_kernel_log_enabled"
@@ -217,6 +218,14 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
     override fun setManagerCustomPath(path: String) {
         managerCustomPath = path
         preferences.edit { putString(PrefManagerPath, path) }
+    }
+
+    override fun consumeFirstRunNotice(): Boolean {
+        if (preferences.getBoolean(PrefFirstRunNotice, false)) {
+            return false
+        }
+        preferences.edit { putBoolean(PrefFirstRunNotice, true) }
+        return true
     }
 
     override fun setShizukuEnabled(enabled: Boolean) {
@@ -602,7 +611,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
         return try {
             val binary = File(appContext.applicationInfo.nativeLibraryDir, binaryName)
             require(binary.isFile) { "missing native binary: ${binary.absolutePath}" }
-            if (prepareKsud(workDir, onLog) != null) onLog("<k> ksud ready") else onLog("<k> warning: ksud not found")
+            if (prepareKsud(workDir, onLog) != null) onLog("<k> ksud ready（管理器 ksud 已就绪）") else onLog("<k> warning: ksud not found（未找到管理器 ksud）")
             // U01-S14: a per-run KernelSU log path so a previous run's markers
             // can never satisfy the handoff probe; passed to the native process.
             val ksuLog = File(workDir, ksuLogName(System.currentTimeMillis()))
@@ -699,7 +708,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
                     frameStdin = true,
                     onProcess = { processRef.set(it) },
                 )
-                onLog("<b> native exited code=$nativeCode")
+                onLog("<b> native exited code=$nativeCode（原生进程退出码，0 为成功）")
                 nativeCode
             } finally {
                 withContext(Dispatchers.IO) {
@@ -1159,17 +1168,26 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
                     val position = offset.get().takeIf { it <= file.length() } ?: 0L
                     file.seek(position)
                     var lastComplete = position
-                    val pending = StringBuilder()
+                    /* UTF-8 lines: byte.toChar() would latin-1-mangle every
+                     * non-ASCII byte (the native side emits CJK banners), so
+                     * accumulate raw bytes and decode each completed line as
+                     * UTF-8; multi-byte sequences never contain '\n'. */
+                    val pending = java.io.ByteArrayOutputStream()
                     while (true) {
                         val byte = file.read()
                         if (byte == -1) break
                         if (byte == '\n'.code) {
-                            if (pending.isNotEmpty()) onLog(pending.toString())
-                            pending.clear()
+                            if (pending.size() > 0) {
+                                onLog(pending.toString("UTF-8"))
+                            }
+                            pending.reset()
                             lastComplete = file.filePointer
                         } else {
-                            pending.append(byte.toChar())
+                            pending.write(byte)
                         }
+                    }
+                    if (pending.size() > 0) {
+                        onLog(pending.toString("UTF-8"))
                     }
                     offset.set(lastComplete)
                 }

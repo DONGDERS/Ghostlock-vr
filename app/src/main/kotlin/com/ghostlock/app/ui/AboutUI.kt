@@ -171,6 +171,11 @@ internal fun AboutScreen(onBack: () -> Unit) {
                     uriHandler.openUri("https://github.com/x-spy/CVE-2026-43499-popsicle")
                 }
             }
+            item(key = "neo11") {
+                AboutLink("CVE-2026-43499-Neo11Plus", "github.com/boxiaolanya2008/CVE-2026-43499-Neo11Plus") {
+                    uriHandler.openUri("https://github.com/boxiaolanya2008/CVE-2026-43499-Neo11Plus")
+                }
+            }
 
             item(key = "licenses-title") {
                 SmallTitle(text = stringResource(R.string.about_open_source))

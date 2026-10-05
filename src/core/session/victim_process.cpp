@@ -204,7 +204,7 @@ namespace ghostlock::session::victim {
     int32_t verify_selinux_stage(void *context) {
         (void) context;
         if (!attack::check_selinux_off()) return 0;
-        pr_success("SELinux permissive\n");
+        pr_success("SELinux permissive —— SELinux 已切宽容模式\n");
         return 1;
     }
 
@@ -219,7 +219,7 @@ namespace ghostlock::session::victim {
         }
         pr_info("child uid = %u\n", child_uid);
         if (child_uid != 0) return 0;
-        pr_success("child is root!\n");
+        pr_success("child is root! —— 子进程已提权\n");
         return 1;
     }
 

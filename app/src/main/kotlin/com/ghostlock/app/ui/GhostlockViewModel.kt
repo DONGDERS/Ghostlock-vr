@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ghostlock.app.R
 import com.ghostlock.app.domain.model.CpuPair
 import com.ghostlock.app.domain.model.KernelSnapshot
+import com.ghostlock.app.domain.model.ManagerPresets
 import com.ghostlock.app.domain.model.LogTone
 import com.ghostlock.app.domain.model.OffsetImportResult
 import com.ghostlock.app.domain.model.ParseResult
@@ -828,6 +829,12 @@ class GhostlockViewModel(
         mutableState.update { it.copy(managerModeIndex = index) }
     }
 
+    fun toggleManagerCustom(enabled: Boolean) {
+        val index = if (enabled) ManagerPresets.size + 1 else 0
+        repository.setManagerMode(index)
+        mutableState.update { it.copy(managerModeIndex = index) }
+    }
+
     fun updateManagerCustomPackage(value: String) {
         repository.setManagerCustomPackage(value)
         mutableState.update { it.copy(managerCustomPackage = value) }
@@ -880,9 +887,20 @@ class GhostlockViewModel(
 
     private fun runExploit() {
         val snapshot = kernelSnapshot ?: return
+        if (repository.consumeFirstRunNotice()) {
+            mutableState.update {
+                it.copy(
+                    dialogVisible = true,
+                    dialogType = DialogType.NOTICE,
+                    dialogTitleRes = R.string.first_run_notice_title,
+                    dialogMessageRes = R.string.first_run_notice_message,
+                )
+            }
+            return
+        }
         if (!snapshot.kernelSupported) {
             if (beginOperation()) {
-                appendLog("result: exploit chain unsupported by this kernel")
+                appendLog("result: exploit chain unsupported by this kernel（该内核不支持此攻击链）")
                 endOperation()
             }
             return
@@ -900,7 +918,7 @@ class GhostlockViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val code = runExploitUseCase(pair, useShizuku, ::appendLog)
-                appendLog(if (code == 0) "result: exploit completed" else "result: exploit failed (exit code=$code)")
+                appendLog(if (code == 0) "result: exploit completed（提权流程已完成）" else "result: exploit failed (exit code=$code)（提权失败）")
                 appendLog("exit code=$code")
             } finally {
                 endOperation()

@@ -79,11 +79,13 @@
     <string name="manager_select_label">激活管理器</string>
     <string name="manager_select_summary">提权后激活哪个 KernelSU 管理器</string>
     <string name="manager_mode_auto">自动（旧版探测）</string>
-    <string name="manager_mode_custom_package">自定义包名</string>
-    <string name="manager_mode_custom_path">指定 libksud.so 路径</string>
+    <string name="manager_custom_toggle">自定义激活</string>
+    <string name="manager_custom_toggle_summary">自行填写包名和/或 libksud.so 路径</string>
     <string name="manager_custom_package_label">包名</string>
     <string name="manager_custom_path_label">libksud.so 路径</string>
-    <string name="manager_custom_path_hint">直接执行该二进制（late-load --allow-shell）；需要 find 命令模板请用包名模式</string>
+    <string name="manager_custom_hint">只填包名：find /data/app 定位并以 --package-name 激活。只填路径：直接执行该二进制。两者都填：执行该二进制并授权给该包名。</string>
+    <string name="first_run_notice_title">免费软件提示</string>
+    <string name="first_run_notice_message">本软件是免费软件，如果你是付费获取的，你就被骗了</string>
     <string name="force_attack_test_summary">忽略已加载的 KernelSU 直接运行攻击；结束后丢弃 root child</string>
     <string name="shizuku_label">通过 Shizuku 执行</string>
     <string name="shizuku_summary">跳过 Seccomp bypass</string>

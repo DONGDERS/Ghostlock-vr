@@ -189,6 +189,9 @@ private fun GhostlockRoute(
             override fun onManagerModeSelected(index: Int) =
                 viewModel.selectManagerMode(index)
 
+            override fun onManagerCustomToggled(enabled: Boolean) =
+                viewModel.toggleManagerCustom(enabled)
+
             override fun onManagerCustomPackageChanged(value: String) =
                 viewModel.updateManagerCustomPackage(value)
 

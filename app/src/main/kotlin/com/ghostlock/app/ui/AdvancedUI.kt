@@ -151,8 +151,6 @@ private fun managerCardItems(): List<DropdownItem> =
     listOf(
         stringResource(R.string.manager_mode_auto),
         *ManagerPresets.map { it.label }.toTypedArray(),
-        stringResource(R.string.manager_mode_custom_package),
-        stringResource(R.string.manager_mode_custom_path),
     ).map { DropdownItem(icon = null, title = it) }
 
 @Composable
@@ -200,34 +198,36 @@ internal fun AdvancedScreen(
             item(key = "manager") {
                 Card {
                     Column {
+                        val managerCustom = state.managerModeIndex == ManagerPresets.size + 1
                         OverlaySpinnerPreference(
                             title = stringResource(R.string.manager_select_label),
                             summary = stringResource(R.string.manager_select_summary),
                             items = managerCardItems(),
-                            selectedIndex = state.managerModeIndex,
+                            selectedIndex = if (managerCustom) 0 else state.managerModeIndex,
                             showValue = true,
+                            enabled = !managerCustom,
                             onSelectedIndexChange = actions::onManagerModeSelected,
                         )
+                        SwitchPreference(
+                            title = stringResource(R.string.manager_custom_toggle),
+                            summary = stringResource(R.string.manager_custom_toggle_summary),
+                            checked = managerCustom,
+                            onCheckedChange = actions::onManagerCustomToggled,
+                        )
                         AnimatedVisibility(
-                            visible = state.managerModeIndex == ManagerPresets.size + 1,
-                            enter = expandVertically(),
-                            exit = shrinkVertically(),
-                        ) {
-                            TextField(
-                                value = state.managerCustomPackage,
-                                onValueChange = actions::onManagerCustomPackageChanged,
-                                label = stringResource(R.string.manager_custom_package_label),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
-                            )
-                        }
-                        AnimatedVisibility(
-                            visible = state.managerModeIndex == ManagerPresets.size + 2,
+                            visible = managerCustom,
                             enter = expandVertically(),
                             exit = shrinkVertically(),
                         ) {
                             Column {
+                                TextField(
+                                    value = state.managerCustomPackage,
+                                    onValueChange = actions::onManagerCustomPackageChanged,
+                                    label = stringResource(R.string.manager_custom_package_label),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+                                )
                                 TextField(
                                     value = state.managerCustomPath,
                                     onValueChange = actions::onManagerCustomPathChanged,
@@ -237,7 +237,7 @@ internal fun AdvancedScreen(
                                         .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
                                 )
                                 Text(
-                                    text = stringResource(R.string.manager_custom_path_hint),
+                                    text = stringResource(R.string.manager_custom_hint),
                                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
                                     style = MiuixTheme.textStyles.body2,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,

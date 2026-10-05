@@ -22,18 +22,19 @@ data class ManagerSelection(
     val customPath: String = "",
 ) {
     val preset: ManagerPreset? get() = ManagerPresets.getOrNull(modeIndex - 1)
-    val isCustomPackage: Boolean get() = modeIndex == ManagerPresets.size + 1
-    val isCustomPath: Boolean get() = modeIndex == ManagerPresets.size + 2
-    /** Effective package name for the find-based activation command. */
+    /** Custom mode: both fields are live and combinable — path names the
+     *  binary to run, package names the manager to grant via --package-name. */
+    val isCustom: Boolean get() = modeIndex == ManagerPresets.size + 1
+    /** Effective package name for --package-name (preset or custom field). */
     val packageName: String?
         get() = when {
             preset != null -> preset!!.packageName
-            isCustomPackage -> customPackage.trim().takeIf { it.isNotEmpty() }
+            isCustom -> customPackage.trim().takeIf { it.isNotEmpty() }
             else -> null
         }
-    /** Explicit libksud.so path when the custom-path mode is active. */
+    /** Explicit libksud.so binary to run instead of the find template. */
     val explicitPath: String?
-        get() = if (isCustomPath) customPath.trim().takeIf { it.isNotEmpty() } else null
+        get() = if (isCustom) customPath.trim().takeIf { it.isNotEmpty() } else null
 }
 
 data class CpuPair(val primary: Int, val consumer: Int) {

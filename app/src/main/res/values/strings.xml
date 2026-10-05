@@ -79,11 +79,13 @@
     <string name="manager_select_label">Activation manager</string>
     <string name="manager_select_summary">Which KernelSU manager to activate after root</string>
     <string name="manager_mode_auto">Auto (legacy detection)</string>
-    <string name="manager_mode_custom_package">Custom package name</string>
-    <string name="manager_mode_custom_path">Custom libksud.so path</string>
+    <string name="manager_custom_toggle">Custom activation</string>
+    <string name="manager_custom_toggle_summary">Fill in a package name and/or an explicit libksud.so path</string>
     <string name="manager_custom_package_label">Package name</string>
     <string name="manager_custom_path_label">libksud.so path</string>
-    <string name="manager_custom_path_hint">Runs the binary directly with late-load --allow-shell; leave the package modes to use the find-based command</string>
+    <string name="manager_custom_hint">Package name only: find /data/app and run with --package-name. Path only: run that binary with --allow-shell. Both: run the path binary and grant the package.</string>
+    <string name="first_run_notice_title">Free software notice</string>
+    <string name="first_run_notice_message">This app is free software. If you paid to get it, you have been scammed.</string>
     <string name="force_attack_test_summary">Ignore an existing KernelSU root and run the exploit anyway; the rooted child is discarded at the end</string>
     <string name="shizuku_label">Run via Shizuku</string>
     <string name="shizuku_summary">Skip Seccomp bypass</string>

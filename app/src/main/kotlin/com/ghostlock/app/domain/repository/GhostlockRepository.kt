@@ -27,6 +27,10 @@ interface GhostlockRepository {
 
     fun setManagerCustomPath(path: String)
 
+    /** True exactly once (the first call) so the run button can show the
+     *  free-software anti-scam notice before the first execution. */
+    fun consumeFirstRunNotice(): Boolean
+
     fun setShizukuEnabled(enabled: Boolean)
 
     /**

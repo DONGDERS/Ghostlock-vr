@@ -243,6 +243,7 @@ addresses.
 | `offset.selinux_enforcing` | `selinux_state.enforcing` offset (W1 writes 0) |
 | `offset.selinux_blob_sizes` / `offset.security_hook_heads` | SELinux / security-hook offsets |
 | `offset.slide_nfulnl_logger` / `offset.slide_boot_id` / `offset.slide_loggers_0_1` | KASLR slide anchors |
+| `offset.sys_exit_tp_funcs` | optional: image offset of `__tracepoint_sys_exit->funcs`. When present (non-zero) the W1c stage zero-writes the field before any task is rooted, globally disarming vivo's vr.ko kill-on-syscall-exit probe; when absent the per-task W2b tag clear remains the only defense |
 | `kernel_phys_load` | Kernel physical load address (0 falls back to the SoC formula) |
 | `recommend_shizuku` | Whether this kernel recommends the Shizuku path (0/1, required in every profile, default 0; advisory only). It is not shown in any editor: for recommended kernels the app **turns the home-screen "Run via Shizuku" switch on at every start**. You can turn it off for the session, and once off the app stops requiring Shizuku for that session |
 

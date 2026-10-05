@@ -97,6 +97,10 @@ const CONF_TASK_FIELDS: &[(&str, &str)] = &[
 #[derive(Debug, Clone, Default)]
 pub struct ConfExtraOffsets {
     pub empty_zero_page: Option<u64>,
+    /// Image offset of `__tracepoint_sys_exit->funcs` (the W1c vr.ko
+    /// neutralization target), recovered from disassembly. None omits the
+    /// key and the app degrades to per-task tag clearing.
+    pub sys_exit_tp_funcs: Option<u64>,
 }
 
 /// The shared 6.x credential template (`credential-6x.conf`), in the bundled
@@ -203,6 +207,10 @@ fn conf_offsets(
         ("slide_nfulnl_logger", symbol("off_slide_nfulnl_logger")),
         ("slide_boot_id", symbol("off_slide_boot_id")),
         ("slide_loggers_0_1", symbol("off_slide_loggers_0_1")),
+        (
+            "sys_exit_tp_funcs",
+            extra.sys_exit_tp_funcs.map(|v| v.to_string()),
+        ),
     ]
     .into_iter()
     .filter_map(|(key, value)| value.map(|value| (key.to_string(), value)))

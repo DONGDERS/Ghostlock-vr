@@ -10,7 +10,8 @@ use ghostlock_extract::boot::{BootImage, MTK_DEFAULT_PHYS_LOAD, MTK_VADDR_BASE};
 use ghostlock_extract::btf::Btf;
 use ghostlock_extract::derive::{
     PSELECT_ROUTE_NFDS, derive_cred_5x, derive_nf_logger_registration, derive_pselect_layout,
-    ensure_rtmutex_43499_unpatched, multicast_waiter_off, relative_symbols,
+    derive_sys_exit_tp_funcs, ensure_rtmutex_43499_unpatched, multicast_waiter_off,
+    relative_symbols,
 };
 use ghostlock_extract::error::{ExtractError, Result};
 use ghostlock_extract::fdt::{recover_kernel_phys_load, recover_kernel_phys_load_from_uefi};
@@ -449,6 +450,19 @@ fn run(cli: &Cli) -> Result<i32> {
     if let Some(slot) = derived.get("off_slide_loggers_0_1").copied() {
         symbol_offsets.insert("off_slide_loggers_0_1".to_string(), Some(slot));
     }
+    // vr.ko W1c target: &__tracepoint_sys_exit->funcs (image offset). Absent
+    // from kallsyms (data symbol); recovered from __traceiter_sys_exit's code.
+    match derive_sys_exit_tp_funcs(&boot.kernel, &rel_symbols, &sorted_offsets, btf.as_ref()) {
+        Ok(field) => {
+            symbol_offsets.insert("off_sys_exit_tp_funcs".to_string(), Some(field));
+            eprintln!("info: sys_exit_tp_funcs={field:#x} (tracepoint.funcs write target)");
+        }
+        Err(err) => {
+            eprintln!(
+                "warning: sys_exit_tp_funcs derivation failed: {err}; the profile will                  omit the field and the app falls back to per-task vr tag clearing only"
+            );
+        }
+    }
     let struct_offsets = resolve_structs(btf.as_ref());
 
     let missing: Vec<String> = symbol_offsets
@@ -627,6 +641,10 @@ fn run(cli: &Cli) -> Result<i32> {
         let extra_offsets = report::ConfExtraOffsets {
             empty_zero_page: kallsyms::unique(&symbols, "empty_zero_page")
                 .and_then(|value| value.checked_sub(base)),
+            sys_exit_tp_funcs: symbol_offsets
+                .get("off_sys_exit_tp_funcs")
+                .copied()
+                .flatten(),
         };
         report::render_conf(&report::ConfInputs {
             release: release_text,

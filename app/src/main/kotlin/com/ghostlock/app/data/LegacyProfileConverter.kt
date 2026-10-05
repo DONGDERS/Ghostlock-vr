@@ -45,7 +45,7 @@ internal object LegacyProfileConverter {
         "init_task", "init_cred",
         "root_task_group", "selinux_enforcing", "selinux_blob_sizes",
         "security_hook_heads", "slide_nfulnl_logger", "slide_loggers_0_1",
-        "slide_boot_id",
+        "slide_boot_id", "sys_exit_tp_funcs",
     )
 
     /* Per-route legacy layout codec. Adding a route = add a codec + register it

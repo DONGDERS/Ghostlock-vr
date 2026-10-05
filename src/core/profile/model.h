@@ -106,6 +106,10 @@ namespace ghostlock::profile {
         uint64_t root_task_group = 0, selinux_enforcing = 0;
         uint64_t selinux_blob_sizes = 0, security_hook_heads = 0;
         uint64_t slide_nfulnl_logger = 0, slide_loggers_0_1 = 0, slide_boot_id = 0;
+        /* Image offset of __tracepoint_sys_exit->funcs (vr.ko W1c target);
+         * 0 = not provided: the W1c global neutralize is skipped and only the
+         * per-task W2b tag clear protects the child. */
+        uint64_t sys_exit_tp_funcs = 0;
     };
 
     struct KernelMisc {

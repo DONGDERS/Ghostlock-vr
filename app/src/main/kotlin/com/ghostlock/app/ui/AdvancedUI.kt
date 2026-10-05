@@ -144,7 +144,6 @@ private fun ProfileHintBanner(
  * Advanced screen: offsets tooling, parameter overrides and the debug-only
  * log export switches. Debug preferences are hidden in release builds.
  */
-@Composable
 /** Manager card dropdown entries in the domain mode order: auto, presets,
  *  custom package, custom path. */
 @Composable
@@ -156,6 +155,7 @@ private fun managerCardItems(): List<DropdownItem> =
         stringResource(R.string.manager_mode_custom_path),
     ).map { DropdownItem(icon = null, title = it) }
 
+@Composable
 internal fun AdvancedScreen(
     state: GhostlockUiState,
     actions: GhostlockActions,

@@ -20,6 +20,7 @@ flate2 = "1"
 regex = "1"
 yaxpeax-arm = "0.5"
 yaxpeax-arch = "0.3"
+zstd = { version = "0.13", default-features = false }
 
 [dependencies.payload-extract]
 package = "payload-extract"

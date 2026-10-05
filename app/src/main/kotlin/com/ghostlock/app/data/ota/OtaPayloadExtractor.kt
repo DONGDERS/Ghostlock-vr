@@ -24,8 +24,10 @@ object OtaPayloadExtractor {
     private const val LOCAL_HEADER_PROBE_SIZE = 256
 
     suspend fun extractPartitions(
-        url: String, workDir: File, onLog: (String) -> Unit
+        url: String, workDir: File, onLog: (String) -> Unit,
+        extractBinary: File? = null,
     ): ExtractedPartitions {
+        requireNotNull(extractBinary) { "extractBinary is required for REPLACE_ZSTD support" }
         val reader = HttpRangeReader()
         val fileLength = reader.fileLength(url) ?: throw IOException("Failed to connect or determine file length from URL")
         if (fileLength <= 0L) {
@@ -143,7 +145,10 @@ object OtaPayloadExtractor {
                                         url, dataBase + op.dataOffset, op.dataLength.toInt()
                                     ) ?: throw IOException("Failed to read REPLACE_ZSTD operation for $name at offset ${dataBase + op.dataOffset}")
                                     val uncompressedSize = op.destExtents.sumOf { it.numBlocks } * blockSize
-                                    val decompressed = ZstdDecoder.decode(compressed, uncompressedSize.toInt())
+                                    val decompressed = ZstdDecoder.decode(
+                                        extractBinary, workDir,
+                                        compressed, uncompressedSize.toInt(),
+                                    )
                                     writeExtents(raf, decompressed, op.destExtents, blockSize)
                                     currentDownloadedBytes += op.dataLength
                                     reportProgress()

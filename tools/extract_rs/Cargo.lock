@@ -560,6 +560,7 @@ dependencies = [
  "thiserror",
  "yaxpeax-arch",
  "yaxpeax-arm",
+ "zstd",
 ]
 
 [[package]]

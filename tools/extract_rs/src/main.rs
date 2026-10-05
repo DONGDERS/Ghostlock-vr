@@ -766,7 +766,52 @@ fn run(cli: &Cli) -> Result<i32> {
     Ok(0)
 }
 
+/// One-shot zstd decode used by the app's Kotlin OTA extractor: the pure-Java
+/// decoders either need sun.misc.Unsafe reflection (blocked on newer Android
+/// hidden-API enforcement and crashes with ExceptionInInitializerError) or a
+/// packaged native library, while this binary already carries the zstd crate
+/// compiled for the target. `expected` is the destination-extent size; a
+/// mismatch fails closed.
+fn zstd_decode_main(input_path: &str, output_path: &str, expected: usize) -> i32 {
+    use std::io::Read;
+    let input = match std::fs::read(input_path) {
+        Ok(data) => data,
+        Err(err) => {
+            eprintln!("error: cannot read {input_path}: {err}");
+            return 2;
+        }
+    };
+    let mut decoder = match zstd::Decoder::new(&input[..]) {
+        Ok(decoder) => decoder,
+        Err(err) => {
+            eprintln!("error: not a zstd stream: {err}");
+            return 3;
+        }
+    };
+    let mut out = Vec::with_capacity(expected);
+    if let Err(err) = decoder.read_to_end(&mut out) {
+        eprintln!("error: zstd decode failed: {err}");
+        return 4;
+    }
+    if out.len() != expected {
+        eprintln!("error: zstd output size {} != expected {}", out.len(), expected);
+        return 5;
+    }
+    if let Err(err) = std::fs::write(output_path, &out) {
+        eprintln!("error: cannot write {output_path}: {err}");
+        return 6;
+    }
+    0
+}
+
 fn main() {
+    /* --zstd-decode <in> <out> <expected>: service mode for the app's OTA
+     * extractor; handled before any profile/boot machinery is touched. */
+    let raw: Vec<String> = std::env::args().collect();
+    if raw.len() == 5 && raw[1] == "--zstd-decode" {
+        let expected = raw[4].parse::<usize>().unwrap_or(usize::MAX);
+        std::process::exit(zstd_decode_main(&raw[2], &raw[3], expected));
+    }
     let cli = Cli::parse();
     match run(&cli) {
         Ok(code) => std::process::exit(code),

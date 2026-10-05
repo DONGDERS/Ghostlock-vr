@@ -360,6 +360,7 @@ class AndroidGhostlockRepository(context: Context) : GhostlockRepository {
                     url = input,
                     workDir = filesDir,
                     onLog = onLog,
+                    extractBinary = binary,
                 )
                 tempBootFile = extracted.bootFile
                 tempXblFile = extracted.xblConfigFile

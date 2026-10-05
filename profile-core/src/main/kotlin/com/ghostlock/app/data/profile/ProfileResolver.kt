@@ -13,6 +13,9 @@ object ProfileResolver {
         "release", "schema_version", "kernel_major", "recommend_shizuku",
         "route", "fallback", "kernelsnitch", "task_struct", "cred", "offset",
         "kernel_phys_load", "execution",
+        /* official dev-format keys: an explicit null means "not provided" and
+         * vr_guard/recommend_vr_guard carry the tracepoint guard layout. */
+        "kernel_phys_offset", "recommend_vr_guard", "vr_guard",
     )
     private val RequiredTopLevel = setOf(
         "release", "schema_version", "kernel_major", "route", "task_struct", "cred", "offset",

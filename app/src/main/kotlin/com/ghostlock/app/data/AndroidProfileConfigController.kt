@@ -537,7 +537,7 @@ internal class AndroidProfileConfigController(
         require((index["schema_version"] as? Number)?.toInt() == 1) { "unsupported profile schema" }
         val builtinEntry = findProfile(index["profiles"].asValueList(), profileRelease)
         val imported = if (includeImported) {
-            userProfiles.loadEntry(deviceRelease, activeUserProfile())
+            userProfiles.loadEntry(deviceRelease, activeUserProfile())?.let(::stripExplicitNulls)
         } else {
             null
         }
@@ -553,6 +553,7 @@ internal class AndroidProfileConfigController(
                         "profile index release mismatch"
                     }
                 }
+                .let(::stripExplicitNulls)
         }
         val tuningExecution = readExecutionTuning()?.get("execution").asValueMap()
         val routePresets = ProfileConfig.Routes
@@ -605,6 +606,26 @@ internal class AndroidProfileConfigController(
     }.getOrNull()
 
     /** Creates null placeholders for invalid fields the document does not carry. */
+    /** The official (dev) conf format writes an explicit `null` for fields the
+     * image could not provide; the main-era pipeline treats them as plain
+     * absent keys (no editor rows, no red validation, resolver default 0).
+     * Editor-session placeholders (route branch templates, cleared fields) are
+     * produced after this stage and stay untouched. */
+    private fun stripExplicitNulls(profile: ValueMap): ValueMap {
+        val out = valueMapOf()
+        for ((key, value) in profile) {
+            when (value) {
+                null -> {}
+                is Map<*, *> -> {
+                    val child = value.asValueMap()
+                    if (child != null) out[key] = stripExplicitNulls(child)
+                }
+                else -> out[key] = value
+            }
+        }
+        return out
+    }
+
     private fun materializeInvalidPaths(profile: ValueMap, invalidPaths: Set<String>) {
         invalidPaths.forEach { path ->
             val segments = path.split('.')
@@ -717,7 +738,7 @@ internal class AndroidProfileConfigController(
                 }
 
                 value is Number -> if (path != "schema_version" && path != "release" &&
-                    path != "recommend_shizuku"
+                    path != "recommend_shizuku" && path != "recommend_vr_guard"
                 ) {
                     val overrideValue = override.getLongAt(path)
                     leaves += ProfileFieldNode(
@@ -730,7 +751,7 @@ internal class AndroidProfileConfigController(
                 }
 
                 value == null -> if (path != "schema_version" && path != "release" &&
-                    path != "recommend_shizuku"
+                    path != "recommend_shizuku" && path != "recommend_vr_guard"
                 ) {
                     leaves += ProfileFieldNode(
                         path = path,

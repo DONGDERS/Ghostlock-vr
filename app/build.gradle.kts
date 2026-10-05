@@ -174,6 +174,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("com.typesafe:config:1.4.9")
     implementation("org.apache.commons:commons-compress:1.28.0")
+    // Pure-Java zstd: payload REPLACE_ZSTD operations in newer vivo OTAs.
+    // No native library, so nothing extra lands in jniLibs.
+    implementation("io.airlift:aircompressor:0.27")
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("top.yukonga.miuix.kmp:miuix-ui:0.9.4")

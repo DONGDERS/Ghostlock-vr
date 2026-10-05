@@ -13,6 +13,7 @@ object PayloadBinUtils {
     const val OP_ZERO = 6L
     const val OP_DISCARD = 7L
     const val OP_REPLACE_XZ = 8L
+    const val OP_REPLACE_ZSTD = 14L
 
     val PAYLOAD_MAGIC = byteArrayOf('C'.code.toByte(), 'r'.code.toByte(), 'A'.code.toByte(), 'U'.code.toByte())
     private const val MAX_MANIFEST_SIZE = 64L shl 20 // 64 MiB max manifest size

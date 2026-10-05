@@ -138,6 +138,17 @@ object OtaPayloadExtractor {
                                     reportProgress()
                                 }
 
+                                PayloadBinUtils.OP_REPLACE_ZSTD -> {
+                                    val compressed = reader.read(
+                                        url, dataBase + op.dataOffset, op.dataLength.toInt()
+                                    ) ?: throw IOException("Failed to read REPLACE_ZSTD operation for $name at offset ${dataBase + op.dataOffset}")
+                                    val uncompressedSize = op.destExtents.sumOf { it.numBlocks } * blockSize
+                                    val decompressed = ZstdDecoder.decode(compressed, uncompressedSize.toInt())
+                                    writeExtents(raf, decompressed, op.destExtents, blockSize)
+                                    currentDownloadedBytes += op.dataLength
+                                    reportProgress()
+                                }
+
                                 PayloadBinUtils.OP_REPLACE_BZ -> {
                                     val compressed = reader.read(
                                         url, dataBase + op.dataOffset, op.dataLength.toInt()

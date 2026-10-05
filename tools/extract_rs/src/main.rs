@@ -9,12 +9,13 @@ use ghostlock_extract::analysis;
 use ghostlock_extract::boot::{BootImage, MTK_DEFAULT_PHYS_LOAD, MTK_VADDR_BASE};
 use ghostlock_extract::btf::Btf;
 use ghostlock_extract::derive::{
+    derive_sys_exit_tp_funcs,
     PSELECT_ROUTE_NFDS, derive_cred_5x, derive_nf_logger_registration, derive_pselect_layout,
-    derive_sys_exit_tp_funcs, ensure_rtmutex_43499_unpatched, multicast_waiter_off,
-    relative_symbols,
+    ensure_rtmutex_43499_unpatched, multicast_waiter_off, relative_symbols,
 };
 use ghostlock_extract::error::{ExtractError, Result};
 use ghostlock_extract::fdt::{recover_kernel_phys_load, recover_kernel_phys_load_from_uefi};
+use ghostlock_extract::iomem;
 use ghostlock_extract::kallsyms;
 use ghostlock_extract::kallsyms::Kallsyms;
 use ghostlock_extract::kallsyms_finder;
@@ -37,6 +38,10 @@ struct Cli {
     /// embedded kallsyms table is recovered from the kernel image
     #[arg(long)]
     kallsyms: Option<PathBuf>,
+    /// /proc/iomem text file (rooted device dump); when omitted a readable
+    /// /proc/iomem is used to derive kernel_phys_offset and kernel_phys_load
+    #[arg(long)]
+    iomem: Option<PathBuf>,
     /// optional XBL xbl_config.img; derive kernel physical load from its FDT
     #[arg(long)]
     xbl_config: Option<PathBuf>,
@@ -264,6 +269,37 @@ fn run(cli: &Cli) -> Result<i32> {
     let Some(base) = base else {
         return Err(ExtractError::new("_text/_head is not unique in kallsyms"));
     };
+
+    // DRAM base / linear-map offset, and (with the kallsyms delta) the kernel
+    // physical load, from /proc/iomem when available (rooted device or --iomem).
+    let mut kernel_phys_offset: Option<u64> = None;
+    let iomem_info = match iomem::load(cli.iomem.as_deref()) {
+        Ok(info) => info,
+        Err(err) => {
+            eprintln!("warning: {err}");
+            None
+        }
+    };
+    if let Some(info) = iomem_info {
+        kernel_phys_offset = info.dram_base;
+        if kernel_phys_load.is_none() {
+            if let (Some(kc), Some(text), Some(stext)) = (
+                info.kernel_code_start,
+                kallsyms::unique(&symbols, "_text"),
+                kallsyms::unique(&symbols, "_stext"),
+            ) {
+                let delta = stext.wrapping_sub(text) & 0xffff_ffff;
+                let derived = kc.wrapping_sub(delta) & 0xffff_ffff;
+                eprintln!(
+                    "info: iomem; kernel_phys_load=0x{derived:x} kernel_phys_offset=0x{:x}",
+                    kernel_phys_offset.unwrap_or(0)
+                );
+                kernel_phys_load = Some(derived);
+                phys_source = "iomem";
+            }
+        }
+    }
+
     let (rel_symbols, sorted_offsets) = relative_symbols(&symbols, base);
     // stop early when remove_waiter() is fixed; --analysis reports it instead.
     let primitive = ensure_rtmutex_43499_unpatched(&boot.kernel, &rel_symbols, &sorted_offsets);
@@ -361,6 +397,9 @@ fn run(cli: &Cli) -> Result<i32> {
     let mut symbol_offsets = resolve_symbols(&symbols, base);
 
     let mut derived: BTreeMap<String, u64> = BTreeMap::new();
+    // Infeasible pselect geometry only rules out the select_stack route; it is
+    // recorded here and re-checked after route selection instead of aborting.
+    let mut pselect_infeasible: Option<String> = None;
     if !cli.no_disasm {
         if let Some(btf) = &btf {
             match derive_pselect_layout(
@@ -399,8 +438,8 @@ fn run(cli: &Cli) -> Result<i32> {
                     derived.insert("pselect_waiter_shift_value".to_string(), shift as u64);
                 }
                 Err(ExtractError::Infeasible(message)) => {
-                    eprintln!("error: pselect route not feasible on this kernel: {message}");
-                    return Ok(3);
+                    eprintln!("warning: pselect route not feasible on this kernel: {message}");
+                    pselect_infeasible = Some(message);
                 }
                 Err(err) => {
                     eprintln!("warning: pselect_waiter_shift derivation failed: {err}");
@@ -433,6 +472,11 @@ fn run(cli: &Cli) -> Result<i32> {
         .copied()
         .map(|value| value as i64)
         .or_else(|| {
+            // An infeasible derivation means this image's layout does not exist;
+            // a family default would be wrong, so it is not substituted.
+            if pselect_infeasible.is_some() {
+                return None;
+            }
             let shift = report::pselect_waiter_shift_for(release.as_deref());
             if let Some(shift) = shift {
                 eprintln!(
@@ -450,18 +494,36 @@ fn run(cli: &Cli) -> Result<i32> {
     if let Some(slot) = derived.get("off_slide_loggers_0_1").copied() {
         symbol_offsets.insert("off_slide_loggers_0_1".to_string(), Some(slot));
     }
-    // vr.ko W1c target: &__tracepoint_sys_exit->funcs (image offset). Absent
-    // from kallsyms (data symbol); recovered from __traceiter_sys_exit's code.
-    match derive_sys_exit_tp_funcs(&boot.kernel, &rel_symbols, &sorted_offsets, btf.as_ref()) {
-        Ok(field) => {
-            symbol_offsets.insert("off_sys_exit_tp_funcs".to_string(), Some(field));
-            eprintln!("info: sys_exit_tp_funcs={field:#x} (tracepoint.funcs write target)");
+
+    // vr.ko guard target. The tracepoint struct is a data symbol: GKI builds
+    // with KALLSYMS_ALL carry it, stripped/vendor kernels may not — then the
+    // disassembly derivation recovers it from __traceiter_sys_exit's code
+    // (adrp+ldr+cbz signature, cross-checked against BTF and the adjacent
+    // sys_enter struct).
+    if symbol_offsets.get("off_vr_sys_exit_tp").copied().flatten().is_none() {
+        match derive_sys_exit_tp_funcs(&boot.kernel, &rel_symbols, &sorted_offsets, btf.as_ref()) {
+            Ok(field) => {
+                let funcs_off = u64::from(btf.as_ref().and_then(|b| b.field("tracepoint", "funcs")).unwrap_or(0x48));
+                let tp = field.checked_sub(funcs_off);
+                if let Some(tp) = tp {
+                    symbol_offsets.insert("off_vr_sys_exit_tp".to_string(), Some(tp));
+                    eprintln!("info: vr_sys_exit_tp={tp:#x} (disassembly derivation; kallsyms lacked the symbol)");
+                }
+            }
+            Err(err) => {
+                eprintln!(
+                    "warning: vr_sys_exit_tp unavailable (kallsyms + disassembly both failed): {err}; the vr guard stays off for this image"
+                );
+            }
         }
-        Err(err) => {
-            eprintln!(
-                "warning: sys_exit_tp_funcs derivation failed: {err}; the profile will                  omit the field and the app falls back to per-task vr tag clearing only"
-            );
-        }
+    }
+    // Legacy single-field transport: the write target itself, emitted both in
+    // the JSON symbols table and the conf offset block.
+    if let Some(tp) = symbol_offsets.get("off_vr_sys_exit_tp").copied().flatten() {
+        let funcs_off = u64::from(
+            btf.as_ref().and_then(|b| b.field("tracepoint", "funcs")).unwrap_or(0x48),
+        );
+        symbol_offsets.insert("off_sys_exit_tp_funcs".to_string(), Some(tp + funcs_off));
     }
     let struct_offsets = resolve_structs(btf.as_ref());
 
@@ -545,23 +607,37 @@ fn run(cli: &Cli) -> Result<i32> {
         let route = match cli.route.as_deref() {
             Some(route) => Some(route.to_string()),
             None => {
-                let paths = analysis::probe_paths(&symbols);
+                let paths =
+                    analysis::probe_paths(&symbols, &boot.kernel, &rel_symbols, &sorted_offsets);
                 let pselect_derived = derived.contains_key("pselect_waiter_shift_value");
                 let (suggested, _, _) =
                     analysis::suggest_route(pselect_derived, &paths, release.as_deref());
                 suggested.map(str::to_string)
             }
         };
+        // select_stack is the only route that needs the derived pselect layout;
+        // reject it here, after selection, so tcp/multicast can still proceed.
+        if route
+            .as_deref()
+            .is_some_and(analysis::route_depends_on_pselect_layout)
+        {
+            if let Some(message) = &pselect_infeasible {
+                eprintln!("error: pselect route not feasible on this kernel: {message}");
+                return Ok(3);
+            }
+        }
         let mut geometry = route
             .as_deref()
             .map(|route| {
                 report::conf_route_geometry(route, release_text, pselect_shift, &struct_offsets)
             })
             .unwrap_or_default();
-        // 5.x multicast: replace the proven-constant waiter_off with the value
-        // statically derived from this image's setsockopt/futex stack frames.
-        // No device or root is involved; the A301SO image reproduces its
-        // hardware-probed 0x60.
+        // 5.x multicast: the frame/copy-window constants (`waiter_off` /
+        // `buffer_size`) are image-derived. They are emitted only when the
+        // static derivation from this image's setsockopt/futex stack frames
+        // succeeds; otherwise the candidate stays without them instead of
+        // borrowing the hardware-probed A301SO 0x60. No device or root is
+        // involved; the A301SO image reproduces its hardware-probed 0x60.
         if route.as_deref() == Some("multicast_waiter") {
             const MCAST_BUFFER_SIZE: u64 = 264;
             const RT_MUTEX_WAITER_PI_TREE_ENTRY: u64 = 0x18;
@@ -578,15 +654,12 @@ fn run(cli: &Cli) -> Result<i32> {
                          (setsockopt depth 0x{:x} - futex depth 0x{:x})",
                         geom.waiter_off, geom.setsockopt_depth, geom.waiter_depth
                     );
-                    for entry in geometry.iter_mut() {
-                        if entry.0 == "waiter_off" {
-                            entry.1 = geom.waiter_off as i64;
-                        }
-                    }
+                    geometry.insert(0, ("waiter_off", geom.waiter_off as i64));
+                    geometry.insert(1, ("buffer_size", MCAST_BUFFER_SIZE as i64));
                 }
                 Err(err) => eprintln!(
                     "warning: static multicast waiter_off derivation failed: {err}; \
-                     keeping the proven 5.x constant"
+                     omitting the frame/copy-window geometry (the candidate stays incomplete)"
                 ),
             }
         }
@@ -649,6 +722,9 @@ fn run(cli: &Cli) -> Result<i32> {
         report::render_conf(&report::ConfInputs {
             release: release_text,
             phys: kernel_phys_load,
+            /* DRAM base: from /proc/iomem when the extractor ran on a rooted
+             * device, otherwise left for the profile author to fill. */
+            phys_offset: kernel_phys_offset,
             symbols: &symbol_offsets,
             structs: &struct_offsets,
             route: route.as_deref(),

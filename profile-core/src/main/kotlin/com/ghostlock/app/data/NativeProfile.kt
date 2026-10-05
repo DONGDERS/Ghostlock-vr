@@ -399,7 +399,21 @@ data class NativeProfileDocument(
                     slideNfulnlLogger = vul("offset.slide_nfulnl_logger"),
                     slideLoggers01 = vul("offset.slide_loggers_0_1"),
                     slideBootId = vul("offset.slide_boot_id"),
-                    sysExitTpFuncs = vul("offset.sys_exit_tp_funcs"),
+                    /* Direct single-field transport first; otherwise compose the
+                     * official dev-format pair (offset.vr_sys_exit_tp +
+                     * vr_guard.tracepoint_funcs). Both parts must be non-zero:
+                     * a half-resolved pair must disable the stage, not aim the
+                     * write at the struct base. */
+                    sysExitTpFuncs = run {
+                        val direct = vul("offset.sys_exit_tp_funcs")
+                        if (direct != 0uL) {
+                            direct
+                        } else {
+                            val tp = vul("offset.vr_sys_exit_tp")
+                            val funcs = vul("vr_guard.tracepoint_funcs")
+                            if (tp != 0uL && funcs != 0uL) tp + funcs else 0uL
+                        }
+                    },
                 ),
                 kernelPhysLoad = vulOrNull("kernel_phys_load"),
                 compactWaiter = vbOrNull("compact_waiter"),
@@ -518,6 +532,7 @@ data class NativeProfileDocument(
                         "slide_loggers_0_1" -> offsets.copy(slideLoggers01 = raw)
                         "slide_boot_id" -> offsets.copy(slideBootId = raw)
                         "sys_exit_tp_funcs" -> offsets.copy(sysExitTpFuncs = raw)
+                        "vr_sys_exit_tp" -> offsets.copy(vrSysExitTp = raw)
                         else -> offsets
                     }
 
@@ -678,6 +693,9 @@ data class KernelOffsetTable(
     /** Image offset of __tracepoint_sys_exit->funcs (W1c vr.ko disarm target).
      * 0 = absent: the app degrades to the per-task W2b tag clear. */
     val sysExitTpFuncs: ULong = 0uL,
+    /** Official dev-format tracepoint struct base; the wire transports the
+     * composed target, this field only feeds profile round-trips. */
+    val vrSysExitTp: ULong = 0uL,
 )
 
 data class ExecutionTuning(

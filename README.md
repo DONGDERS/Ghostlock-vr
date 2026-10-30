@@ -30,3 +30,7 @@ OTA 提取链路的 zstd 帧解码由 Java 侧 aircompressor 改为 Rust 侧原�
 ```bash
 ./gradlew :app:assembleRelease
 ```
+## License
+本项目使用 [Apache License 2.0](LICENSE)。
+
+This project is licensed under the [Apache License 2.0](LICENSE).

